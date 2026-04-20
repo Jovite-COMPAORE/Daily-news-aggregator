@@ -1,0 +1,34 @@
+name: Briefing Quotidien
+
+# Déclenchement automatique chaque jour à 19h00 heure de Ouagadougou (UTC+0)
+on:
+  schedule:
+    - cron: '0 19 * * *'
+  
+  # Permet aussi de lancer manuellement depuis GitHub pour tester
+  workflow_dispatch:
+
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Récupérer le code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: 📦 Installer les dépendances
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: 🚀 Lancer le briefing
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python briefing.py
