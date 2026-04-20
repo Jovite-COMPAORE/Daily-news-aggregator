@@ -2,7 +2,7 @@
 """
 Bot de briefing culturel quotidien
 Récupère les actualités du jour, les fait résumer par Llama 3.3 (via Groq),
-et envoie le briefing sur Telegram à 19h00.
+et envoie le briefing sur Telegram à 8h00 et à 19h00.
 
 API utilisée : Groq (gratuite)
 """
@@ -86,8 +86,33 @@ def recuperer_actualites():
 # ============================================================
 
 def construire_prompt(actualites):
-    """Construit le prompt qui sera envoyé à Llama 3.3"""
-    date_du_jour = datetime.now().strftime("%A %d %B %Y")
+    """
+    Construit le prompt qui sera envoyé à Llama 3.3
+    Adapte le ton et le titre selon l'heure (matin ou soir)
+    """
+    now = datetime.now()
+    date_du_jour = now.strftime("%A %d %B %Y")
+    heure = now.hour
+
+    # Détection : matin (avant 12h UTC) ou soir (après 12h UTC)
+    if heure < 12:
+        moment = "matin"
+        emoji_titre = "🌅"
+        titre = f"BRIEFING DU MATIN — {date_du_jour}"
+        intro_contextuelle = (
+            "Ton objectif : donner au lecteur un tour d'horizon RAPIDE de ce "
+            "qu'il doit savoir pour commencer sa journée bien informé. "
+            "Ton direct, énergique, informatif."
+        )
+    else:
+        moment = "soir"
+        emoji_titre = "🌙"
+        titre = f"BRIEFING DU SOIR — {date_du_jour}"
+        intro_contextuelle = (
+            "Ton objectif : faire le POINT FINAL de la journée. "
+            "Ton plus réfléchi, avec prise de recul sur les événements. "
+            "Mets l'accent sur les CONSÉQUENCES et les CHIFFRES clés."
+        )
 
     texte_actualites = ""
     for categorie, articles in actualites.items():
@@ -101,8 +126,10 @@ def construire_prompt(actualites):
 de la fonction publique au Burkina Faso. Le candidat vise des postes de Data Analyst 
 dans des sociétés d'État burkinabè.
 
+{intro_contextuelle}
+
 À partir des actualités brutes ci-dessous, rédige un briefing de culture générale 
-structuré pour la soirée du {date_du_jour}.
+structuré pour le {moment} du {date_du_jour}.
 
 EXIGENCES DE FORMAT :
 - Utilise exactement la structure donnée ci-dessous
@@ -111,27 +138,28 @@ EXIGENCES DE FORMAT :
   Burkina Faso, AES (Alliance des États du Sahel), institutions africaines
 - Évite les faits divers sans portée géopolitique ou économique
 - Termine par UNE question de culture générale pertinente avec sa réponse
+- N'affiche PAS les mentions "(3 infos max)" dans le rendu final
 
 ACTUALITÉS BRUTES À TRAITER :
 {texte_actualites}
 
 STRUCTURE OBLIGATOIRE DU BRIEFING :
 
-🌙 BRIEFING DU SOIR — {date_du_jour}
+{emoji_titre} {titre}
 
-🇧🇫 BURKINA FASO (3 infos max)
-• [Info 1]
-• [Info 2]
-• [Info 3]
+🇧🇫 BURKINA FASO
+- [Info 1]
+- [Info 2]
+- [Info 3]
 
-🌍 AES & AFRIQUE (3 infos max)
-• [Info 1]
-• [Info 2]
-• [Info 3]
+🌍 AES & AFRIQUE
+- [Info 1]
+- [Info 2]
+- [Info 3]
 
-🌐 INTERNATIONAL (2-3 infos)
-• [Info 1]
-• [Info 2]
+🌐 INTERNATIONAL
+- [Info 1]
+- [Info 2]
 
 💡 LE CHIFFRE DU JOUR
 [Un chiffre marquant tiré des actualités + 1 phrase de contexte]
