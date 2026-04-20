@@ -1,8 +1,11 @@
 name: Briefing Quotidien
 
-# Déclenchement automatique chaque jour à 19h00 heure de Ouagadougou (UTC+0)
+# Déclenchement automatique chaque jour à 08h00 et à 19h00 heure de Ouagadougou (UTC+0)
 on:
   schedule:
+    # Briefing du matin à 8h00 UTC (= 8h00 Ouagadougou)
+    - cron: '0 8 * * *'
+    # Briefing du soir à 19h00 UTC (= 19h00 Ouagadougou)
     - cron: '0 19 * * *'
   
   # Permet aussi de lancer manuellement depuis GitHub pour tester
