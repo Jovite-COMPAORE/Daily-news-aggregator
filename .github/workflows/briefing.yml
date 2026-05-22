@@ -1,20 +1,19 @@
 name: Briefing Quotidien
 
-# Déclenchement automatique chaque jour à 08h00 et à 19h00 heure de Ouagadougou (UTC+0)
 on:
-  schedule:
-    # Briefing du matin à 8h00 UTC (= 8h00 Ouagadougou)
-    - cron: '0 8 * * *'
-    # Briefing du soir à 19h00 UTC (= 19h00 Ouagadougou)
-    - cron: '0 19 * * *'
-  
-  # Permet aussi de lancer manuellement depuis GitHub pour tester
   workflow_dispatch:
+    inputs:
+      moment:
+        description: 'matin ou soir'
+        required: false
+        default: 'auto'
+  schedule:
+    - cron: '0 7 * * *'
+    - cron: '0 19 * * *'
 
 jobs:
   briefing:
     runs-on: ubuntu-latest
-    
     steps:
       - name: 📥 Récupérer le code
         uses: actions/checkout@v4
@@ -34,4 +33,5 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MOMENT_JOURNEE: ${{ github.event.inputs.moment }}
         run: python briefing.py
