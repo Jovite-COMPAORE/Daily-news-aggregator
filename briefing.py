@@ -1,10 +1,20 @@
 # -*- coding: utf-8 -*-
+"""
+Bot de briefing culturel quotidien — Version Premium
+Formats différenciés matin / soir
+Niveau : grand public cultivé
+"""
+
 import os
 import sys
 import feedparser
 import requests
 from datetime import datetime
 from groq import Groq
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -28,8 +38,12 @@ FLUX_RSS = {
     ],
 }
 
-NB_ARTICLES_PAR_FLUX = 5
+NB_ARTICLES_PAR_FLUX = 6
 
+
+# ============================================================
+# ÉTAPE 1 : RÉCUPÉRER LES ACTUALITÉS
+# ============================================================
 
 def recuperer_actualites():
     actualites = {}
@@ -41,7 +55,7 @@ def recuperer_actualites():
                 feed = feedparser.parse(url)
                 for entry in feed.entries[:NB_ARTICLES_PAR_FLUX]:
                     titre = entry.get("title", "").strip()
-                    resume = entry.get("summary", "")[:300]
+                    resume = entry.get("summary", "")[:400]
                     if titre:
                         actualites[categorie].append({
                             "titre": titre,
@@ -54,118 +68,193 @@ def recuperer_actualites():
     return actualites
 
 
+# ============================================================
+# ÉTAPE 2 : CONSTRUIRE LE PROMPT SELON LE MOMENT
+# ============================================================
+
 def construire_prompt(actualites):
     now = datetime.now()
     date_du_jour = now.strftime("%A %d %B %Y")
-
     moment_param = os.environ.get("MOMENT_JOURNEE", "auto")
 
+    # Déterminer le moment
     if moment_param == "matin":
         moment = "matin"
-        emoji_titre = "🌅"
-        titre = f"BRIEFING DU MATIN — {date_du_jour}"
-        intro_contextuelle = (
-            "Tour d'horizon rapide pour bien demarrer la journee. "
-            "Ton direct, energique, informatif."
-        )
     elif moment_param == "soir":
         moment = "soir"
-        emoji_titre = "🌙"
-        titre = f"BRIEFING DU SOIR — {date_du_jour}"
-        intro_contextuelle = (
-            "Point final de la journee avec prise de recul sur les evenements."
-        )
     else:
         heure = now.hour
-        if 5 <= heure < 16:
-            moment = "matin"
-            emoji_titre = "🌅"
-            titre = f"BRIEFING DU MATIN — {date_du_jour}"
-            intro_contextuelle = "Tour d'horizon rapide pour bien demarrer la journee."
-        else:
-            moment = "soir"
-            emoji_titre = "🌙"
-            titre = f"BRIEFING DU SOIR — {date_du_jour}"
-            intro_contextuelle = "Point final de la journee avec prise de recul."
+        moment = "matin" if 5 <= heure < 16 else "soir"
 
+    # Préparer les actualités brutes
     texte_actualites = ""
     for categorie, articles in actualites.items():
         texte_actualites += f"\n\n### {categorie}\n"
         for art in articles:
             texte_actualites += f"- {art['titre']}\n"
             if art['resume']:
-                texte_actualites += f"  Extrait : {art['resume'][:200]}\n"
+                texte_actualites += f"  Contexte : {art['resume'][:300]}\n"
 
-    prompt = f"""Tu es un coach de culture generale qui prepare un candidat a un concours
-de la fonction publique au Burkina Faso. Le candidat vise des postes de Data Analyst
-dans des societes d'Etat burkinabe.
+    # ============================================================
+    # PROMPT MATIN
+    # ============================================================
+    if moment == "matin":
+        prompt = f"""Tu es un service de veille informationnelle neutre et fiable,
+destiné à un public africain francophone cultivé et actif professionnellement.
+Tu ne donnes pas d'opinions, tu n'as pas de ligne éditoriale.
+Tu informes. Tu facilites la vie des gens en leur donnant l'essentiel
+de l'actualité de façon claire, précise et accessible.
 
-{intro_contextuelle}
+Ta mission ce matin : rédiger le briefing du matin du {date_du_jour}.
 
-A partir des actualites brutes ci-dessous, redige un briefing de culture generale
-structure pour le {moment} du {date_du_jour}.
+RÈGLES ABSOLUES :
+- Chaque information doit tenir en 1 à 2 lignes maximum
+- Chaque info doit contenir un fait ET son contexte immédiat (pas juste un titre)
+- Ton neutre, factuel, sans jugement ni prise de position
+- Aucune mention de "(5 infos)", "(3 infos)" ou de toute autre instruction dans le rendu
+- Priorité aux sujets à portée nationale, régionale ou internationale significative
+- Éviter les faits divers sans portée politique, économique ou sociale
+- Choisir des concepts et chiffres réellement instructifs pour un adulte cultivé
+- Le chiffre du jour doit être frappant et mémorisable
+- Le mot du matin doit être utile à connaître, pas trop basique, pas trop technique
 
-EXIGENCES DE FORMAT :
-- Utilise exactement la structure donnee ci-dessous
-- Sois concis : chaque info en 1-2 lignes maximum
-- Priorite aux sujets qui peuvent tomber dans un concours : geopolitique, economie,
-  Burkina Faso, AES (Alliance des Etats du Sahel), institutions africaines
-- Evite les faits divers sans portee geopolitique ou economique
-- N'affiche PAS les mentions comme "(3 infos max)" dans le rendu final
+STRUCTURE OBLIGATOIRE — respecte exactement cet ordre et ces emojis :
 
-ACTUALITES BRUTES A TRAITER :
-{texte_actualites}
-
-STRUCTURE OBLIGATOIRE DU BRIEFING :
-
-{emoji_titre} {titre}
+🌅 BRIEFING DU MATIN — {date_du_jour}
 
 🇧🇫 BURKINA FASO
-- [Info 1]
-- [Info 2]
-- [Info 3]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
 
 🌍 AES & AFRIQUE
-- [Info 1]
-- [Info 2]
-- [Info 3]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
 
 🌐 INTERNATIONAL
-- [Info 1]
-- [Info 2]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
 
-💡 LE CHIFFRE DU JOUR
-[Un chiffre marquant tire des actualites + 1 phrase de contexte]
+💡 CHIFFRE DU MATIN
+[Un chiffre marquant issu des actualités ou du contexte africain + 1 phrase de contexte précis]
 
-📚 MOT/CONCEPT DU JOUR
-[Un acronyme, institution ou concept important a retenir + definition en 2 lignes]
+📚 MOT DU MATIN
+[Terme ou acronyme utile à connaître + définition claire en 1-2 lignes, niveau grand public cultivé]
 
-❓ QUESTION DU JOUR
-Q : [Question type QCM concours, 1 phrase claire]
-R : [Reponse + 1 phrase d'explication]
+ACTUALITÉS BRUTES À TRAITER :
+{texte_actualites}
 
-Genere UNIQUEMENT le briefing, sans introduction ni commentaire.
+Génère UNIQUEMENT le briefing. Pas d'introduction, pas de conclusion, pas de commentaire.
 """
-    return prompt
 
+    # ============================================================
+    # PROMPT SOIR
+    # ============================================================
+    else:
+        prompt = f"""Tu es un service de veille informationnelle neutre et fiable,
+destiné à un public africain francophone cultivé et actif professionnellement.
+Tu ne donnes pas d'opinions, tu n'as pas de ligne éditoriale.
+Tu informes. Tu facilites la vie des gens en leur donnant l'essentiel
+de l'actualité de façon claire, précise et accessible.
+
+Ta mission ce soir : rédiger le briefing du soir du {date_du_jour}.
+
+RÈGLES ABSOLUES :
+- Chaque information doit tenir en 1 à 2 lignes maximum
+- Chaque info doit contenir un fait ET son contexte immédiat (pas juste un titre)
+- Ton neutre, factuel, sans jugement ni prise de position
+- Aucune mention de "(5 infos)", "(3 infos)" ou de toute autre instruction dans le rendu
+- Priorité aux sujets à portée nationale, régionale ou internationale significative
+- Éviter les faits divers sans portée politique, économique ou sociale
+- Le chiffre du jour doit être frappant et mémorisable
+- Le concept du jour : ni trop basique (pas "l'ONU c'est quoi"), ni trop technique
+  Vise un adulte cultivé qui lit de temps en temps mais n'est pas spécialiste
+- L'institution du jour : choisir une institution africaine ou internationale
+  réellement utile à connaître dans le contexte actuel
+- La question du soir : niveau grand public cultivé, pas niveau concours
+  Elle doit être intéressante, pas évidente, mais accessible sans être spécialiste
+- "Demain à suivre" : 1 ou 2 événements/échéances concrets attendus le lendemain
+
+STRUCTURE OBLIGATOIRE — respecte exactement cet ordre et ces emojis :
+
+🌙 BRIEFING DU SOIR — {date_du_jour}
+
+🇧🇫 BURKINA FASO
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+
+🌍 AES & AFRIQUE
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+
+🌐 INTERNATIONAL
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+• [Fait précis + contexte en 1-2 lignes]
+
+💡 CHIFFRE DU JOUR
+[Un chiffre marquant issu des actualités ou du contexte africain + 1 phrase de contexte précis]
+
+📚 CONCEPT DU JOUR
+[Notion utile à connaître + explication claire en 2 lignes, niveau grand public cultivé]
+
+🏛 INSTITUTION DU JOUR
+[Nom complet de l'institution + son rôle concret en 2 lignes dans le contexte actuel]
+
+❓ QUESTION DU SOIR
+Q : [Question intéressante et accessible, niveau grand public cultivé]
+R : [Réponse directe + 1 phrase d'explication]
+
+🗓 DEMAIN À SUIVRE
+• [Événement ou échéance concret attendu demain]
+• [Événement ou échéance concret attendu demain — si pertinent]
+
+ACTUALITÉS BRUTES À TRAITER :
+{texte_actualites}
+
+Génère UNIQUEMENT le briefing. Pas d'introduction, pas de conclusion, pas de commentaire.
+"""
+
+    return prompt, moment
+
+
+# ============================================================
+# ÉTAPE 3 : GÉNÉRER LE BRIEFING AVEC GROQ
+# ============================================================
 
 def generer_briefing(actualites):
     client = Groq(api_key=GROQ_API_KEY)
-    prompt = construire_prompt(actualites)
-    print("Generation du briefing par Llama 3.3 via Groq...")
+    prompt, moment = construire_prompt(actualites)
+
+    print(f"Generation du briefing ({moment}) par Llama 3.3 via Groq...")
+
     completion = client.chat.completions.create(
         model=MODELE_GROQ,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
-        max_tokens=2000,
+        temperature=0.5,
+        max_tokens=2500,
     )
+
     return completion.choices[0].message.content
 
+
+# ============================================================
+# ÉTAPE 4 : ENVOYER SUR TELEGRAM
+# ============================================================
 
 def envoyer_telegram(texte):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     MAX_LONGUEUR = 4000
     morceaux = []
+
     if len(texte) <= MAX_LONGUEUR:
         morceaux = [texte]
     else:
@@ -194,6 +283,10 @@ def envoyer_telegram(texte):
             return False
     return True
 
+
+# ============================================================
+# FONCTION PRINCIPALE
+# ============================================================
 
 def main():
     if not GROQ_API_KEY:
