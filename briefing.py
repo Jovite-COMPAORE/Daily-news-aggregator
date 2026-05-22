@@ -1,12 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Bot de briefing culturel quotidien
-Récupère les actualités du jour, les fait résumer par Llama 3.3 (via Groq),
-et envoie le briefing sur Telegram à 8h00 et à 19h00.
-
-API utilisée : Groq (gratuite)
-"""
-
 import os
 import sys
 import feedparser
@@ -14,21 +6,12 @@ import requests
 from datetime import datetime
 from groq import Groq
 
-# ============================================================
-# CONFIGURATION
-# ============================================================
-
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-# Modèle Groq à utiliser
-# Alternatives :
-# - "llama-3.3-70b-versatile" (recommandé, meilleure qualité)
-# - "llama-3.1-8b-instant" (plus rapide, moins précis)
 MODELE_GROQ = "llama-3.3-70b-versatile"
 
-# Sources RSS fiables
 FLUX_RSS = {
     "Burkina Faso": [
         "https://lefaso.net/spip.php?page=backend",
@@ -48,26 +31,17 @@ FLUX_RSS = {
 NB_ARTICLES_PAR_FLUX = 5
 
 
-# ============================================================
-# ÉTAPE 1 : RÉCUPÉRER LES ACTUALITÉS
-# ============================================================
-
 def recuperer_actualites():
-    """Parcourt tous les flux RSS et récupère les derniers titres"""
     actualites = {}
-
     for categorie, urls in FLUX_RSS.items():
         actualites[categorie] = []
-
         for url in urls:
             try:
-                print(f"📡 Récupération : {url}")
+                print(f"Recuperation : {url}")
                 feed = feedparser.parse(url)
-
                 for entry in feed.entries[:NB_ARTICLES_PAR_FLUX]:
                     titre = entry.get("title", "").strip()
                     resume = entry.get("summary", "")[:300]
-
                     if titre:
                         actualites[categorie].append({
                             "titre": titre,
@@ -75,51 +49,45 @@ def recuperer_actualites():
                             "source": feed.feed.get("title", "Source inconnue"),
                         })
             except Exception as e:
-                print(f"⚠ Erreur sur {url} : {e}")
+                print(f"Erreur sur {url} : {e}")
                 continue
-
     return actualites
 
 
-# ============================================================
-# ÉTAPE 2 : GÉNÉRER LE BRIEFING AVEC GROQ
-# ============================================================
-
 def construire_prompt(actualites):
-    """
-    Construit le prompt qui sera envoyé à Llama 3.3
-    Adapte le ton et le titre selon l'heure (matin ou soir)
-    """
-now = datetime.now()
+    now = datetime.now()
     date_du_jour = now.strftime("%A %d %B %Y")
 
-    # Moment imposé par cron-job.org (fiable) ou deviné par l'heure (fallback)
     moment_param = os.environ.get("MOMENT_JOURNEE", "auto")
 
     if moment_param == "matin":
-        moment, emoji_titre = "matin", "🌅"
+        moment = "matin"
+        emoji_titre = "🌅"
         titre = f"BRIEFING DU MATIN — {date_du_jour}"
         intro_contextuelle = (
-            "Tour d'horizon rapide pour bien démarrer la journée. "
-            "Ton direct, énergique, informatif."
+            "Tour d'horizon rapide pour bien demarrer la journee. "
+            "Ton direct, energique, informatif."
         )
     elif moment_param == "soir":
-        moment, emoji_titre = "soir", "🌙"
+        moment = "soir"
+        emoji_titre = "🌙"
         titre = f"BRIEFING DU SOIR — {date_du_jour}"
         intro_contextuelle = (
-            "Point final de la journée avec prise de recul sur les événements."
+            "Point final de la journee avec prise de recul sur les evenements."
         )
     else:
-        # Fallback si déclenché par le schedule GitHub (sans paramètre)
         heure = now.hour
         if 5 <= heure < 16:
-            moment, emoji_titre = "matin", "🌅"
+            moment = "matin"
+            emoji_titre = "🌅"
             titre = f"BRIEFING DU MATIN — {date_du_jour}"
-            intro_contextuelle = "Tour d'horizon rapide pour bien démarrer la journée."
+            intro_contextuelle = "Tour d'horizon rapide pour bien demarrer la journee."
         else:
-            moment, emoji_titre = "soir", "🌙"
+            moment = "soir"
+            emoji_titre = "🌙"
             titre = f"BRIEFING DU SOIR — {date_du_jour}"
-            intro_contextuelle = "Point final de la journée avec prise de recul."
+            intro_contextuelle = "Point final de la journee avec prise de recul."
+
     texte_actualites = ""
     for categorie, articles in actualites.items():
         texte_actualites += f"\n\n### {categorie}\n"
@@ -128,25 +96,24 @@ now = datetime.now()
             if art['resume']:
                 texte_actualites += f"  Extrait : {art['resume'][:200]}\n"
 
-    prompt = f"""Tu es un coach de culture générale qui prépare un candidat à un concours 
-de la fonction publique au Burkina Faso. Le candidat vise des postes de Data Analyst 
-dans des sociétés d'État burkinabè.
+    prompt = f"""Tu es un coach de culture generale qui prepare un candidat a un concours
+de la fonction publique au Burkina Faso. Le candidat vise des postes de Data Analyst
+dans des societes d'Etat burkinabe.
 
 {intro_contextuelle}
 
-À partir des actualités brutes ci-dessous, rédige un briefing de culture générale 
-structuré pour le {moment} du {date_du_jour}.
+A partir des actualites brutes ci-dessous, redige un briefing de culture generale
+structure pour le {moment} du {date_du_jour}.
 
 EXIGENCES DE FORMAT :
-- Utilise exactement la structure donnée ci-dessous
+- Utilise exactement la structure donnee ci-dessous
 - Sois concis : chaque info en 1-2 lignes maximum
-- Priorité aux sujets qui peuvent tomber dans un concours : géopolitique, économie, 
-  Burkina Faso, AES (Alliance des États du Sahel), institutions africaines
-- Évite les faits divers sans portée géopolitique ou économique
-- Termine par UNE question de culture générale pertinente avec sa réponse
-- N'affiche PAS les mentions "(3 infos max)" dans le rendu final
+- Priorite aux sujets qui peuvent tomber dans un concours : geopolitique, economie,
+  Burkina Faso, AES (Alliance des Etats du Sahel), institutions africaines
+- Evite les faits divers sans portee geopolitique ou economique
+- N'affiche PAS les mentions comme "(3 infos max)" dans le rendu final
 
-ACTUALITÉS BRUTES À TRAITER :
+ACTUALITES BRUTES A TRAITER :
 {texte_actualites}
 
 STRUCTURE OBLIGATOIRE DU BRIEFING :
@@ -168,50 +135,37 @@ STRUCTURE OBLIGATOIRE DU BRIEFING :
 - [Info 2]
 
 💡 LE CHIFFRE DU JOUR
-[Un chiffre marquant tiré des actualités + 1 phrase de contexte]
+[Un chiffre marquant tire des actualites + 1 phrase de contexte]
 
 📚 MOT/CONCEPT DU JOUR
-[Un acronyme, institution ou concept important à retenir + définition en 2 lignes]
+[Un acronyme, institution ou concept important a retenir + definition en 2 lignes]
 
 ❓ QUESTION DU JOUR
 Q : [Question type QCM concours, 1 phrase claire]
-R : [Réponse + 1 phrase d'explication]
+R : [Reponse + 1 phrase d'explication]
 
-Génère UNIQUEMENT le briefing, sans introduction ni commentaire.
+Genere UNIQUEMENT le briefing, sans introduction ni commentaire.
 """
     return prompt
 
 
 def generer_briefing(actualites):
-    """Envoie les actualités à Groq et récupère le briefing formaté"""
     client = Groq(api_key=GROQ_API_KEY)
     prompt = construire_prompt(actualites)
-
-    print("🧠 Génération du briefing par Llama 3.3 via Groq...")
-
+    print("Generation du briefing par Llama 3.3 via Groq...")
     completion = client.chat.completions.create(
         model=MODELE_GROQ,
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
+        messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
         max_tokens=2000,
     )
-
     return completion.choices[0].message.content
 
 
-# ============================================================
-# ÉTAPE 3 : ENVOYER SUR TELEGRAM
-# ============================================================
-
 def envoyer_telegram(texte):
-    """Envoie le briefing sur Telegram (découpé si > 4096 caractères)"""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-
     MAX_LONGUEUR = 4000
     morceaux = []
-
     if len(texte) <= MAX_LONGUEUR:
         morceaux = [texte]
     else:
@@ -232,52 +186,45 @@ def envoyer_telegram(texte):
             "text": morceau,
             "disable_web_page_preview": True,
         }
-
         response = requests.post(url, data=data)
-
         if response.status_code == 200:
-            print(f"✅ Message {i+1}/{len(morceaux)} envoyé sur Telegram")
+            print(f"Message {i+1}/{len(morceaux)} envoye sur Telegram")
         else:
-            print(f"❌ Erreur Telegram : {response.status_code} - {response.text}")
+            print(f"Erreur Telegram : {response.status_code} - {response.text}")
             return False
-
     return True
 
 
-# ============================================================
-# FONCTION PRINCIPALE
-# ============================================================
-
 def main():
     if not GROQ_API_KEY:
-        print("❌ Clé GROQ_API_KEY manquante")
+        print("Cle GROQ_API_KEY manquante")
         sys.exit(1)
     if not TELEGRAM_BOT_TOKEN:
-        print("❌ TELEGRAM_BOT_TOKEN manquant")
+        print("TELEGRAM_BOT_TOKEN manquant")
         sys.exit(1)
     if not TELEGRAM_CHAT_ID:
-        print("❌ TELEGRAM_CHAT_ID manquant")
+        print("TELEGRAM_CHAT_ID manquant")
         sys.exit(1)
 
-    print(f"🚀 Démarrage du briefing - {datetime.now()}")
+    print(f"Demarrage du briefing - {datetime.now()}")
 
     actualites = recuperer_actualites()
     total_articles = sum(len(arts) for arts in actualites.values())
-    print(f"📰 {total_articles} articles récupérés au total")
+    print(f"{total_articles} articles recuperes au total")
 
     if total_articles == 0:
-        print("⚠ Aucun article récupéré. Arrêt.")
+        print("Aucun article recupere. Arret.")
         sys.exit(1)
 
     briefing = generer_briefing(actualites)
-    print(f"📝 Briefing généré ({len(briefing)} caractères)")
+    print(f"Briefing genere ({len(briefing)} caracteres)")
 
     succes = envoyer_telegram(briefing)
 
     if succes:
-        print("🎉 Briefing envoyé avec succès !")
+        print("Briefing envoye avec succes !")
     else:
-        print("❌ Échec de l'envoi")
+        print("Echec de l'envoi")
         sys.exit(1)
 
 
