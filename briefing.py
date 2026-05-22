@@ -90,30 +90,36 @@ def construire_prompt(actualites):
     Construit le prompt qui sera envoyé à Llama 3.3
     Adapte le ton et le titre selon l'heure (matin ou soir)
     """
-    now = datetime.now()
+now = datetime.now()
     date_du_jour = now.strftime("%A %d %B %Y")
-    heure = now.hour
 
-    # Détection : matin (avant 12h UTC) ou soir (après 12h UTC)
-    if heure < 12:
-        moment = "matin"
-        emoji_titre = "🌅"
+    # Moment imposé par cron-job.org (fiable) ou deviné par l'heure (fallback)
+    moment_param = os.environ.get("MOMENT_JOURNEE", "auto")
+
+    if moment_param == "matin":
+        moment, emoji_titre = "matin", "🌅"
         titre = f"BRIEFING DU MATIN — {date_du_jour}"
         intro_contextuelle = (
-            "Ton objectif : donner au lecteur un tour d'horizon RAPIDE de ce "
-            "qu'il doit savoir pour commencer sa journée bien informé. "
+            "Tour d'horizon rapide pour bien démarrer la journée. "
             "Ton direct, énergique, informatif."
         )
-    else:
-        moment = "soir"
-        emoji_titre = "🌙"
+    elif moment_param == "soir":
+        moment, emoji_titre = "soir", "🌙"
         titre = f"BRIEFING DU SOIR — {date_du_jour}"
         intro_contextuelle = (
-            "Ton objectif : faire le POINT FINAL de la journée. "
-            "Ton plus réfléchi, avec prise de recul sur les événements. "
-            "Mets l'accent sur les CONSÉQUENCES et les CHIFFRES clés."
+            "Point final de la journée avec prise de recul sur les événements."
         )
-
+    else:
+        # Fallback si déclenché par le schedule GitHub (sans paramètre)
+        heure = now.hour
+        if 5 <= heure < 16:
+            moment, emoji_titre = "matin", "🌅"
+            titre = f"BRIEFING DU MATIN — {date_du_jour}"
+            intro_contextuelle = "Tour d'horizon rapide pour bien démarrer la journée."
+        else:
+            moment, emoji_titre = "soir", "🌙"
+            titre = f"BRIEFING DU SOIR — {date_du_jour}"
+            intro_contextuelle = "Point final de la journée avec prise de recul."
     texte_actualites = ""
     for categorie, articles in actualites.items():
         texte_actualites += f"\n\n### {categorie}\n"
