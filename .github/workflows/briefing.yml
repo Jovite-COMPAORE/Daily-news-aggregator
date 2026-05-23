@@ -7,9 +7,6 @@ on:
         description: 'matin ou soir'
         required: false
         default: 'auto'
-  schedule:
-    - cron: '0 7 * * *'
-    - cron: '0 19 * * *'
 
 jobs:
   briefing:
